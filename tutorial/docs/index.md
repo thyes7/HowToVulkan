@@ -388,6 +388,7 @@ VkSwapchainCreateInfoKHR swapchainCI{
 	.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 	.presentMode = VK_PRESENT_MODE_FIFO_KHR
 };
+chk(vkCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapchain));
 ```
 
 We're using the 4 component color format `VK_FORMAT_B8G8R8A8_SRGB` with a non-linear sRGB [color space](https://docs.vulkan.org/refpages/latest/refpages/source/VkColorSpaceKHR.html) `VK_COLORSPACE_SRGB_NONLINEAR_KHR`. This combination is guaranteed to be available everywhere. Different combinations would require checking for support. `minImageCount` will be the minimum number of images we get from the swapchain. This value varies between GPUs, hence why we use the information we earlier requested from the surface. `presentMode` defines the way in which images are presented to the screen. [`VK_PRESENT_MODE_FIFO_KHR`](https://docs.vulkan.org/refpages/latest/refpages/source/VkPresentModeKHR.html#) is a v-synced mode and the only mode guaranteed to be available everywhere.
@@ -427,7 +428,7 @@ for (VkFormat& format : depthFormatList) {
 
 !!! Note
 
-	The Vulkan spec [guarantees]((https://docs.vulkan.org/spec/latest/chapters/formats.html#features-required-format-support)) certain format and usage combinations to be supported on all devices. One such guarantee is for depth formats, where either `VK_FORMAT_D32_SFLOAT_S8_UINT` or `VK_FORMAT_D24_UNORM_S8_UINT` must be supported for use as a depth attachment.
+	The Vulkan spec [guarantees](https://docs.vulkan.org/spec/latest/chapters/formats.html#features-required-format-support) certain format and usage combinations to be supported on all devices. One such guarantee is for depth formats, where either `VK_FORMAT_D32_SFLOAT_S8_UINT` or `VK_FORMAT_D24_UNORM_S8_UINT` must be supported for use as a depth attachment.
 
 The properties of the depth image are then defined in a [`VkImageCreateInfo`](https://docs.vulkan.org/refpages/latest/refpages/source/VkImageCreateInfo.html) structure. Some of these are similar to those found at swapchain creation:
 
