@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 !!! Info
 
-	Last updated 2026-03-01: Minor synchronization updates
+	Last updated 2026-03-17: Improved handling of swapchain extent
 
 
 ## Intro
@@ -361,6 +361,18 @@ chk(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(devices[deviceIndex], surface, &su
 
 To visually present something to a surface (in our case, the window) we need to create a swapchain. It's basically a series of images, storing color information, that you enqueue to the presentation engine of the operating system. The [`VkSwapchainCreateInfoKHR`](https://docs.vulkan.org/refpages/latest/refpages/source/VkSwapchainCreateInfoKHR.html) is pretty extensive and requires some explanation.
 
+First step is getting the correct extent of the swapchain. Usually we can get this from the surface capabilities we just queried, but on [Wayland](https://docs.vulkan.org/spec/latest/chapters/VK_KHR_surface/wsi.html#platformCreateSurface_wayland) this has the special value `0xFFFFFFFF`, which indicate that the surface size will basically be determined by the size of the surface:
+
+
+```cpp
+VkExtent2D swapchainExtent{ surfaceCaps.currentExtent };
+if (surfaceCaps.currentExtent.width == 0xFFFFFFFF) {
+	swapchainExtent = { .width = static_cast<uint32_t>(windowSize.x), .height = static_cast<uint32_t>(windowSize.y) };
+}
+```
+
+With the correct extent, we can now set up the information required to create the swapchain:
+
 ```cpp
 const VkFormat imageFormat{ VK_FORMAT_B8G8R8A8_SRGB };
 VkSwapchainCreateInfoKHR swapchainCI{
@@ -369,14 +381,13 @@ VkSwapchainCreateInfoKHR swapchainCI{
 	.minImageCount = surfaceCaps.minImageCount,
 	.imageFormat = imageFormat,
 	.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
-	.imageExtent{ .width = surfaceCaps.currentExtent.width, .height = surfaceCaps.currentExtent.height },
+	.imageExtent{.width = swapchainExtent.width, .height = swapchainExtent.height },
 	.imageArrayLayers = 1,
 	.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 	.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
 	.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
 	.presentMode = VK_PRESENT_MODE_FIFO_KHR
 };
-chk(vkCreateSwapchainKHR(device, &swapchainCI, nullptr, &swapchain));
 ```
 
 We're using the 4 component color format `VK_FORMAT_B8G8R8A8_SRGB` with a non-linear sRGB [color space](https://docs.vulkan.org/refpages/latest/refpages/source/VkColorSpaceKHR.html) `VK_COLORSPACE_SRGB_NONLINEAR_KHR`. This combination is guaranteed to be available everywhere. Different combinations would require checking for support. `minImageCount` will be the minimum number of images we get from the swapchain. This value varies between GPUs, hence why we use the information we earlier requested from the surface. `presentMode` defines the way in which images are presented to the screen. [`VK_PRESENT_MODE_FIFO_KHR`](https://docs.vulkan.org/refpages/latest/refpages/source/VkPresentModeKHR.html#) is a v-synced mode and the only mode guaranteed to be available everywhere.
