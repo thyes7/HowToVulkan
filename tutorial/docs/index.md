@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 !!! Info
 
-	Last updated 2026-03-17: Improved handling of swapchain extent
+	Last updated 2026-03-21: Minor barrier correction
 
 
 ## Intro
@@ -1581,7 +1581,7 @@ VkImageMemoryBarrier2 barrierPresent{
 	.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 	.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 	.dstAccessMask = 0,
-	.oldLayout = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+	.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 	.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 	.image = swapchainImages[imageIndex],
 	.subresourceRange{.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1 }
