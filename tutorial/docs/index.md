@@ -264,13 +264,13 @@ VkPhysicalDeviceVulkan12Features enabledVk12Features{
 	.runtimeDescriptorArray = true,
 	.bufferDeviceAddress = true
 };
-const VkPhysicalDeviceVulkan13Features enabledVk13Features{
+VkPhysicalDeviceVulkan13Features enabledVk13Features{
 	.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
 	.pNext = &enabledVk12Features,
 	.synchronization2 = true,
 	.dynamicRendering = true,
 };
-const VkPhysicalDeviceFeatures enabledVk10Features{
+VkPhysicalDeviceFeatures enabledVk10Features{
 	.samplerAnisotropy = VK_TRUE
 };
 ```
