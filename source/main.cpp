@@ -11,7 +11,7 @@
 #include <array>
 #include <string>
 #include <iostream>
-#include <fstream>
+#include <filesystem>
 #define VMA_IMPLEMENTATION
 #include <vma/vk_mem_alloc.h>
 #define GLM_FORCE_RADIANS
@@ -109,6 +109,11 @@ static inline void chk(bool result) {
 
 int main(int argc, char* argv[])
 {
+	// Make sure asset folder is present from the current working directory
+	if (!std::filesystem::is_directory("assets")) {
+		std::cerr << "Could not locate assets folder from current working directory\n";
+		exit(-1);
+	}
 	chk(SDL_Init(SDL_INIT_VIDEO));
 	chk(SDL_Vulkan_LoadLibrary(NULL));
 	volkInitialize();
