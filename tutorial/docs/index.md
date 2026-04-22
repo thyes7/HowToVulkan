@@ -1737,6 +1737,13 @@ if (updateSwapchain) {
 		};
 		chk(vkCreateImageView(device, &viewCI, nullptr, &swapchainImageViews[i]));
 	}
+	for (auto& semaphore : renderSemaphores) {
+		vkDestroySemaphore(device, semaphore, nullptr);
+	}
+	renderSemaphores.resize(imageCount);
+	for (auto& semaphore : renderSemaphores) {
+		chk(vkCreateSemaphore(device, &semaphoreCI, nullptr, &semaphore));
+	}	
 	vkDestroySwapchainKHR(device, swapchainCI.oldSwapchain, nullptr);
 	vmaDestroyImage(allocator, depthImage, depthImageAllocation);
 	vkDestroyImageView(device, depthImageView, nullptr);
@@ -1759,7 +1766,7 @@ if (updateSwapchain) {
 
 This looks intimidating at first, but it's mostly code we already used earlier on to create the swapchain and the depth image. Before we can recreate these, we call [vkDeviceWaitIdle](https://docs.vulkan.org/refpages/latest/refpages/source/vkDeviceWaitIdle.html) to wait until the GPU has completed all outstanding operations. This makes sure that none of those objects are still in use by the GPU.
 
-An important difference is setting the `oldSwapchain` member of the swapchain create info. This is necessary during recreation to allow the application to continue presenting any already acquired image. Remember we don't have control over those, as they're owned by the swapchain (and the operating system). Other than that it's a simple matter of destroying existing objects (`vkDestroy*`) and creating them a new just like we did earlier on albeit with the new size of the window.
+An important difference here is setting the `oldSwapchain` member of the swapchain create info. This is necessary during recreation to allow the application to continue presenting any already acquired image. Remember we don't have control over those, as they're owned by the swapchain (and the operating system). Other than that it's a simple matter of destroying existing objects (`vkDestroy*`) and recreating them just like we did earlier on using the new size of the window.
 
 ## Cleaning up
 

@@ -632,6 +632,13 @@ int main(int argc, char* argv[])
 				VkImageViewCreateInfo viewCI{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, .image = swapchainImages[i], .viewType = VK_IMAGE_VIEW_TYPE_2D, .format = imageFormat, .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1} };
 				chk(vkCreateImageView(device, &viewCI, nullptr, &swapchainImageViews[i]));
 			}
+			for (auto& semaphore : renderSemaphores) {
+				vkDestroySemaphore(device, semaphore, nullptr);
+			}
+			renderSemaphores.resize(imageCount);
+			for (auto& semaphore : renderSemaphores) {
+				chk(vkCreateSemaphore(device, &semaphoreCI, nullptr, &semaphore));
+			}
 			vkDestroySwapchainKHR(device, swapchainCI.oldSwapchain, nullptr);
 			vmaDestroyImage(allocator, depthImage, depthImageAllocation);
 			vkDestroyImageView(device, depthImageView, nullptr);
