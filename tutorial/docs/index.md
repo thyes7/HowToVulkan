@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 !!! Info
 
-	Last updated 2026-04-21: Editorial fixes
+	Last updated 2026-04-22: Editorial fixes
 
 
 ## Intro
@@ -719,7 +719,7 @@ VkCommandPoolCreateInfo commandPoolCI{
 chk(vkCreateCommandPool(device, &commandPoolCI, nullptr, &commandPool));
 ```
 
-The [`VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT`](https://docs.vulkan.org/refpages/latest/refpages/source/VkCommandPoolCreateFlagBits.html) flag lets us implicitly reset command buffers when [recording them](#record-command-buffer). We also have to specify the queue family that the command buffers allocated from this pool will be submitted to.
+As we explicitly reset command buffers before [recording them](#record-command-buffer), we need to set the [`VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT`](https://docs.vulkan.org/refpages/latest/refpages/source/VkCommandPoolCreateFlagBits.html) flag. We also have to specify the queue family that the command buffers allocated from this pool will be submitted to.
 
 !!! Tip
 
