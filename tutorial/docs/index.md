@@ -688,10 +688,10 @@ VkFenceCreateInfo fenceCI{
 };
 for (auto i = 0; i < maxFramesInFlight; i++) {
 	chk(vkCreateFence(device, &fenceCI, nullptr, &fences[i]));
-	chk(vkCreateSemaphore(device, &semaphoreCI, nullptr, &presentSemaphores[i]));
+	chk(vkCreateSemaphore(device, &semaphoreCI, nullptr, &imageAcquiredSemaphores[i]));
 }
-renderSemaphores.resize(swapchainImages.size());
-for (auto& semaphore : renderSemaphores) {
+renderCompleteSemaphores.resize(swapchainImages.size());
+for (auto& semaphore : renderCompleteSemaphores) {
 	chk(vkCreateSemaphore(device, &semaphoreCI, nullptr, &semaphore));
 }
 ```
@@ -1373,7 +1373,7 @@ The call to [vkWaitForFences](https://docs.vulkan.org/refpages/latest/refpages/s
 As we don't have direct control over the [swapchain images](#swapchain), we need to "ask" (acquire) the swapchain for the next index to be used in this frame:
 
 ```cpp
-chkSwapchain(vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, presentSemaphores[frameIndex], VK_NULL_HANDLE, &imageIndex));
+chkSwapchain(vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, imageAcquiredSemaphores[frameIndex], VK_NULL_HANDLE, &imageIndex));
 ```
 
 It's important to use the image index returned by [vkAcquireNextImageKHR](https://docs.vulkan.org/refpages/latest/refpages/source/vkAcquireNextImageKHR.html) to access the swapchain images. That's because there is no guarantee that images are acquired in consecutive order. That's one of the reasons we have two indices.
@@ -1613,21 +1613,21 @@ VkPipelineStageFlags waitStages = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BI
 VkSubmitInfo submitInfo{
 	.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 	.waitSemaphoreCount = 1,
-	.pWaitSemaphores = &presentSemaphores[frameIndex],
+	.pWaitSemaphores = &imageAcquiredSemaphores[frameIndex],
 	.pWaitDstStageMask = &waitStages,
 	.commandBufferCount = 1,
 	.pCommandBuffers = &cb,
 	.signalSemaphoreCount = 1,
-	.pSignalSemaphores = &renderSemaphores[imageIndex],
+	.pSignalSemaphores = &renderCompleteSemaphores[imageIndex],
 };
 chk(vkQueueSubmit(queue, 1, &submitInfo, fences[frameIndex]));
 ```
 
 The [`VkSubmitInfo`](https://docs.vulkan.org/refpages/latest/refpages/source/VkSubmitInfo.html) structure needs some explanation, esp. in regards to synchronization. Earlier on we learned about the [synchronization primitives](#synchronization-objects) that we need to properly synchronize work between CPU and GPU and the GPU itself. And this is where it all comes together.
 
-The semaphore in `pWaitSemaphores` makes sure the submitted command buffer(s) won't start execution before the presentation of the current frame has finished. The pipeline stage in `pWaitDstStageMask` will make that wait happen at the color attachment output stage of the pipeline, so (in theory) the GPU might already start doing work on parts of the pipeline that come before this, e.g. fetching vertices. The signal semaphore in `pSignalSemaphores` on the other hand is a semaphore that's signalled by the GPU once command buffer execution has completed. This combination ensures that no read/write hazards occur that would have the GPU read from or write to resources still in use.
+The wait semaphore in `pWaitSemaphores` makes sure the command buffer won't start execution until the current swapchain image we want to render to has been acquired. This means that presentation has been finished and that the image been released by the presentation engine. This is required, as the swapchain images are owned by said presentation engine and not by our application. The pipeline stage in `pWaitDstStageMask` will make that wait happen at the color attachment output stage of the pipeline, so (in theory) the GPU might already start doing work on parts of the pipeline that come before this, e.g. fetching vertices. The signal semaphore in `pSignalSemaphores` on the other hand is signalled by the GPU once command buffer execution has completed and is used to make sure presentation won't start until the command buffer has finished exection. This combination ensures that no read/write hazards occur that would have the GPU read from or write to resources still in use.
 
-Notice the distinction between using `frameIndex` for the present semaphore and `imageIndex` for the render semaphore. This is because `vkQueuePresentKHR` (see below) has no way to signal without a certain extension (not yet available everywhere). To work around this we decouple the two semaphore types and use one present semaphore per swapchain image instead. An in-depth explanation for this can be found in the [Vulkan Guide](https://docs.vulkan.org/guide/latest/swapchain_semaphore_reuse.html).
+Notice the distinction between using `frameIndex` for the image acquire semaphore and `imageIndex` for the render complate semaphore. This is because `vkQueuePresentKHR` (see below) has no way to signal without a certain extension (not yet available everywhere). To work around this we decouple the two semaphore types and use one semaphore per swapchain image instead. An in-depth explanation for this can be found in the [Vulkan Guide](https://docs.vulkan.org/guide/latest/swapchain_semaphore_reuse.html).
 
 !!! Warning
 
@@ -1647,7 +1647,7 @@ The final step to get our rendering results to the screen is presenting the curr
 VkPresentInfoKHR presentInfo{
 	.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 	.waitSemaphoreCount = 1,
-	.pWaitSemaphores = &renderSemaphores[imageIndex],
+	.pWaitSemaphores = &renderCompleteSemaphores[imageIndex],
 	.swapchainCount = 1,
 	.pSwapchains = &swapchain,
 	.pImageIndices = &imageIndex
@@ -1655,7 +1655,7 @@ VkPresentInfoKHR presentInfo{
 chkSwapchain(vkQueuePresentKHR(queue, &presentInfo));
 ```
 
-Calling [vkQueuePresentKHR](https://docs.vulkan.org/refpages/latest/refpages/source/vkQueuePresentKHR.html) will enqueue the image for presentation after waiting for the render semaphore. That guarantees the image won't be presented until our rendering commands have finished. 
+Calling [vkQueuePresentKHR](https://docs.vulkan.org/refpages/latest/refpages/source/vkQueuePresentKHR.html) will enqueue the image for presentation and waits on the render finish semaphore. This guarantees the image won't be presented until all rendering commands have finished. 
 
 ### Poll events
 
@@ -1737,11 +1737,11 @@ if (updateSwapchain) {
 		};
 		chk(vkCreateImageView(device, &viewCI, nullptr, &swapchainImageViews[i]));
 	}
-	for (auto& semaphore : renderSemaphores) {
+	for (auto& semaphore : renderCompleteSemaphores) {
 		vkDestroySemaphore(device, semaphore, nullptr);
 	}
-	renderSemaphores.resize(imageCount);
-	for (auto& semaphore : renderSemaphores) {
+	renderCompleteSemaphores.resize(imageCount);
+	for (auto& semaphore : renderCompleteSemaphores) {
 		chk(vkCreateSemaphore(device, &semaphoreCI, nullptr, &semaphore));
 	}	
 	vkDestroySwapchainKHR(device, swapchainCI.oldSwapchain, nullptr);
@@ -1776,7 +1776,7 @@ Destroying Vulkan resources is just as explicit as creating them. In theory you 
 chk(vkDeviceWaitIdle(device));
 for (auto i = 0; i < maxFramesInFlight; i++) {
 	vkDestroyFence(device, fences[i], nullptr);
-	vkDestroySemaphore(device, presentSemaphores[i], nullptr);
+	vkDestroySemaphore(device, imageAcquiredSemaphores[i], nullptr);
 	...
 }
 vmaDestroyImage(allocator, depthImage, depthImageAllocation);

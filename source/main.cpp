@@ -46,8 +46,8 @@ std::vector<VkImage> swapchainImages;
 std::vector<VkImageView> swapchainImageViews;
 std::array<VkCommandBuffer, maxFramesInFlight> commandBuffers;
 std::array<VkFence, maxFramesInFlight> fences;
-std::array<VkSemaphore, maxFramesInFlight> presentSemaphores;
-std::vector<VkSemaphore> renderSemaphores;
+std::array<VkSemaphore, maxFramesInFlight> imageAcquiredSemaphores;
+std::vector<VkSemaphore> renderCompleteSemaphores;
 VmaAllocation vBufferAllocation{ VK_NULL_HANDLE };
 VkBuffer vBuffer{ VK_NULL_HANDLE };
 struct ShaderData {
@@ -280,10 +280,10 @@ int main(int argc, char* argv[])
 	VkFenceCreateInfo fenceCI{ .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .flags = VK_FENCE_CREATE_SIGNALED_BIT };
 	for (auto i = 0; i < maxFramesInFlight; i++) {
 		chk(vkCreateFence(device, &fenceCI, nullptr, &fences[i]));
-		chk(vkCreateSemaphore(device, &semaphoreCI, nullptr, &presentSemaphores[i]));
+		chk(vkCreateSemaphore(device, &semaphoreCI, nullptr, &imageAcquiredSemaphores[i]));
 	}
-	renderSemaphores.resize(swapchainImages.size());
-	for (auto& semaphore : renderSemaphores) {
+	renderCompleteSemaphores.resize(swapchainImages.size());
+	for (auto& semaphore : renderCompleteSemaphores) {
 		chk(vkCreateSemaphore(device, &semaphoreCI, nullptr, &semaphore));
 	}
 	// Command pool
@@ -469,7 +469,7 @@ int main(int argc, char* argv[])
 		// Sync
 		chk(vkWaitForFences(device, 1, &fences[frameIndex], true, UINT64_MAX));
 		chk(vkResetFences(device, 1, &fences[frameIndex]));
-		chkSwapchain(vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, presentSemaphores[frameIndex], VK_NULL_HANDLE, &imageIndex));
+		chkSwapchain(vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, imageAcquiredSemaphores[frameIndex], VK_NULL_HANDLE, &imageIndex));
 		// Update shader data
 		shaderData.projection = glm::perspective(glm::radians(45.0f), (float)windowSize.x / (float)windowSize.y, 0.1f, 32.0f);
 		shaderData.view = glm::translate(glm::mat4(1.0f), camPos);
@@ -565,19 +565,19 @@ int main(int argc, char* argv[])
 		VkSubmitInfo submitInfo{
 			.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 			.waitSemaphoreCount = 1,
-			.pWaitSemaphores = &presentSemaphores[frameIndex],
+			.pWaitSemaphores = &imageAcquiredSemaphores[frameIndex],
 			.pWaitDstStageMask = &waitStages,
 			.commandBufferCount = 1,
 			.pCommandBuffers = &cb,
 			.signalSemaphoreCount = 1,
-			.pSignalSemaphores = &renderSemaphores[imageIndex],
+			.pSignalSemaphores = &renderCompleteSemaphores[imageIndex],
 		};
 		chk(vkQueueSubmit(queue, 1, &submitInfo, fences[frameIndex]));
 		frameIndex = (frameIndex + 1) % maxFramesInFlight;
 		VkPresentInfoKHR presentInfo{
 			.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 			.waitSemaphoreCount = 1,
-			.pWaitSemaphores = &renderSemaphores[imageIndex],
+			.pWaitSemaphores = &renderCompleteSemaphores[imageIndex],
 			.swapchainCount = 1,
 			.pSwapchains = &swapchain,
 			.pImageIndices = &imageIndex
@@ -632,11 +632,11 @@ int main(int argc, char* argv[])
 				VkImageViewCreateInfo viewCI{ .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, .image = swapchainImages[i], .viewType = VK_IMAGE_VIEW_TYPE_2D, .format = imageFormat, .subresourceRange = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .levelCount = 1, .layerCount = 1} };
 				chk(vkCreateImageView(device, &viewCI, nullptr, &swapchainImageViews[i]));
 			}
-			for (auto& semaphore : renderSemaphores) {
+			for (auto& semaphore : renderCompleteSemaphores) {
 				vkDestroySemaphore(device, semaphore, nullptr);
 			}
-			renderSemaphores.resize(imageCount);
-			for (auto& semaphore : renderSemaphores) {
+			renderCompleteSemaphores.resize(imageCount);
+			for (auto& semaphore : renderCompleteSemaphores) {
 				chk(vkCreateSemaphore(device, &semaphoreCI, nullptr, &semaphore));
 			}
 			vkDestroySwapchainKHR(device, swapchainCI.oldSwapchain, nullptr);
@@ -653,11 +653,11 @@ int main(int argc, char* argv[])
 	chk(vkDeviceWaitIdle(device));
 	for (auto i = 0; i < maxFramesInFlight; i++) {
 		vkDestroyFence(device, fences[i], nullptr);
-		vkDestroySemaphore(device, presentSemaphores[i], nullptr);
+		vkDestroySemaphore(device, imageAcquiredSemaphores[i], nullptr);
 		vmaDestroyBuffer(allocator, shaderDataBuffers[i].buffer, shaderDataBuffers[i].allocation);
 	}
-	for (auto i = 0; i < renderSemaphores.size(); i++) {
-		vkDestroySemaphore(device, renderSemaphores[i], nullptr);
+	for (auto i = 0; i < renderCompleteSemaphores.size(); i++) {
+		vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
 	}
 	vmaDestroyImage(allocator, depthImage, depthImageAllocation);
 	vkDestroyImageView(device, depthImageView, nullptr);
