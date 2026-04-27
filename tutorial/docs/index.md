@@ -7,7 +7,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 !!! Info
 
-	Last updated 2026-04-22: Editorial fixes
+	Last updated 2026-04-27: Semaphore clarification
 
 
 ## Intro
